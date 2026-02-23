@@ -1,0 +1,58 @@
+# ── Web Framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.12
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# ── LLM & RAG ─────────────────────────────────────────────────────────────────
+langchain==0.3.0
+langchain-community==0.3.0
+langchain-openai==0.2.0
+langchain-anthropic==0.2.0
+langchain-huggingface==0.1.0
+langchain-ollama==0.2.0
+openai==1.51.0
+anthropic==0.34.0
+
+# ── Embeddings & Vector Search ────────────────────────────────────────────────
+sentence-transformers==3.1.1
+faiss-cpu==1.8.0
+chromadb==0.5.11
+pinecone-client==5.0.1
+rank-bm25==0.2.2
+
+# ── Document Loaders ──────────────────────────────────────────────────────────
+pymupdf==1.24.10          # PDF
+python-docx==1.1.2        # DOCX
+unstructured==0.15.12     # Markdown, misc
+tabulate==0.9.0
+beautifulsoup4==4.12.3
+requests==2.32.3
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+alembic==1.13.3
+psycopg2-binary==2.9.9
+
+# ── Cache & Queue ─────────────────────────────────────────────────────────────
+redis[asyncio]==5.1.0
+celery==5.4.0
+
+# ── Observability ─────────────────────────────────────────────────────────────
+structlog==24.4.0
+prometheus-fastapi-instrumentator==7.0.0
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ── Evaluation ────────────────────────────────────────────────────────────────
+ragas==0.2.0
+datasets==3.0.0
+numpy==1.26.4
+scikit-learn==1.5.2
