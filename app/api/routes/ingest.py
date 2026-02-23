@@ -86,8 +86,9 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     pipeline: IngestionPipeline = Depends(get_ingestion_pipeline),
 ):
-    from app.core.database import Chunk, Document
-    from sqlalchemy import delete as sql_delete, select
+    from app.core.database import Chunk, Document  # noqa: PLC0415
+    from sqlalchemy import delete as sql_delete  # noqa: PLC0415
+    from sqlalchemy import select  # noqa: PLC0415
 
     chunks = await db.execute(select(Chunk.id).where(Chunk.document_id == doc_id))
     chunk_ids = [str(r) for r in chunks.scalars().all()]
