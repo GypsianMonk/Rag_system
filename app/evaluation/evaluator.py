@@ -1,25 +1,13 @@
 """
 Evaluation Framework
-====================
-Wraps RAGAS + custom metrics for offline and online evaluation.
-
-Metrics:
-  - faithfulness        answer supported by retrieved context
-  - context_precision   retrieved chunks contain relevant info
-  - context_recall      all ground-truth info present in chunks
-  - answer_relevancy    answer addresses the question
 """
 
-from __future__ import annotations
-
 import asyncio
-from dataclasses import dataclass, field
-from typing import List, Optional
+from dataclasses import dataclass
 
 import numpy as np
 import structlog
 
-from app.core.config import settings
 from app.retrieval.embedder import Embedder
 
 logger = structlog.get_logger(__name__)
@@ -29,8 +17,8 @@ logger = structlog.get_logger(__name__)
 class EvalSample:
     question: str
     answer: str
-    contexts: List[str]                     # retrieved chunks
-    ground_truth: Optional[str] = None      # for recall
+    contexts: list[str]
+    ground_truth: str | None = None
 
 
 @dataclass
@@ -58,11 +46,6 @@ def _cosine(a, b) -> float:
 
 
 class RAGEvaluator:
-    """
-    Embedding-based evaluation (no external API calls required).
-    For more advanced RAGAS-based eval, swap with `ragas.evaluate()`.
-    """
-
     def __init__(self, embedder: Embedder):
         self.embedder = embedder
 
@@ -76,18 +59,10 @@ class RAGEvaluator:
         ctx_embs = embs[2: 2 + len(sample.contexts)]
         gt_emb = embs[-1] if sample.ground_truth else None
 
-        # Faithfulness: avg similarity(answer, context_i)
         faith = float(np.mean([_cosine(a_emb, c) for c in ctx_embs])) if ctx_embs else 0.0
-
-        # Context precision: avg similarity(question, context_i)
         precision = float(np.mean([_cosine(q_emb, c) for c in ctx_embs])) if ctx_embs else 0.0
-
-        # Context recall: similarity(ground_truth, best context) — only if GT given
         recall = float(max([_cosine(gt_emb, c) for c in ctx_embs])) if gt_emb and ctx_embs else 1.0
-
-        # Answer relevancy: similarity(question, answer)
         relevancy = _cosine(q_emb, a_emb)
-
         composite = float(np.mean([faith, precision, recall, relevancy]))
 
         return EvalResult(
@@ -98,7 +73,7 @@ class RAGEvaluator:
             composite=composite,
         )
 
-    async def evaluate_batch(self, samples: List[EvalSample]) -> List[EvalResult]:
+    async def evaluate_batch(self, samples: list[EvalSample]) -> list[EvalResult]:
         results = await asyncio.gather(*[self.evaluate(s) for s in samples])
         agg = {
             k: round(float(np.mean([getattr(r, k) for r in results])), 4)
@@ -108,12 +83,7 @@ class RAGEvaluator:
         return results
 
 
-# ── RAGAS integration (optional, requires `pip install ragas`) ────────────────
-async def evaluate_with_ragas(samples: List[EvalSample], llm=None, embeddings=None):
-    """
-    Use RAGAS library for more rigorous LLM-graded evaluation.
-    Requires: pip install ragas
-    """
+async def evaluate_with_ragas(samples: list[EvalSample], llm=None, embeddings=None):
     try:
         from datasets import Dataset
         from ragas import evaluate as ragas_eval

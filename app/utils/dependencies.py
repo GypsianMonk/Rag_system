@@ -1,10 +1,8 @@
 """
 FastAPI dependency injection — singletons wired at startup.
-Uses lru_cache so each service is created only once per process.
 """
 
 from functools import lru_cache
-from typing import Optional
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +38,7 @@ def get_vector_store() -> VectorStoreClient:
 
 
 @lru_cache
-def get_reranker() -> Optional[CrossEncoderReranker]:
+def get_reranker() -> CrossEncoderReranker | None:
     if settings.RERANKER_ENABLED:
         return CrossEncoderReranker()
     return None
@@ -49,14 +47,12 @@ def get_reranker() -> Optional[CrossEncoderReranker]:
 def get_retriever(
     embedder: Embedder = Depends(get_embedder),
     vector_store: VectorStoreClient = Depends(get_vector_store),
-    reranker: Optional[CrossEncoderReranker] = Depends(get_reranker),
+    reranker: CrossEncoderReranker | None = Depends(get_reranker),
 ) -> HybridRetriever:
     return HybridRetriever(embedder=embedder, vector_store=vector_store, reranker=reranker)
 
 
-def get_generator(
-    embedder: Embedder = Depends(get_embedder),
-) -> RAGGenerator:
+def get_generator(embedder: Embedder = Depends(get_embedder)) -> RAGGenerator:
     return RAGGenerator(embedder=embedder)
 
 
@@ -68,5 +64,5 @@ def get_ingestion_pipeline(
     return IngestionPipeline(embedder=embedder, vector_store=vector_store, db=db)
 
 
-def optional_tenant(tenant_id: Optional[str] = None) -> Optional[str]:
+def optional_tenant(tenant_id: str | None = None) -> str | None:
     return tenant_id

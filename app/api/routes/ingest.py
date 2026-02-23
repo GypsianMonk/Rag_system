@@ -2,7 +2,7 @@
 /api/v1/ingest  —  Document ingestion endpoints
 """
 
-from typing import List, Optional
+import json
 
 import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -29,19 +29,18 @@ class IngestResponse(BaseModel):
 
 class URLIngestRequest(BaseModel):
     url: str
-    tenant_id: Optional[str] = None
-    metadata: Optional[dict] = None
+    tenant_id: str | None = None
+    metadata: dict | None = None
 
 
 @router.post("/ingest/file", response_model=IngestResponse, summary="Ingest a document file")
 async def ingest_file(
     file: UploadFile = File(...),
     tenant_id: str = Form(default="default"),
-    metadata: Optional[str] = Form(None),
+    metadata: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     pipeline: IngestionPipeline = Depends(get_ingestion_pipeline),
 ):
-    # Validate extension
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -49,7 +48,6 @@ async def ingest_file(
             detail=f"File type '.{ext}' not supported. Allowed: {settings.ALLOWED_EXTENSIONS}",
         )
 
-    # Read and size-check
     content = await file.read()
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(
@@ -57,7 +55,6 @@ async def ingest_file(
             detail=f"File exceeds max size of {settings.MAX_FILE_SIZE_MB}MB",
         )
 
-    import json
     meta_dict = json.loads(metadata) if metadata else {}
 
     result = await pipeline.ingest_file(
@@ -89,9 +86,8 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     pipeline: IngestionPipeline = Depends(get_ingestion_pipeline),
 ):
-    # Delete chunks from vector store and DB
-    from sqlalchemy import select, delete as sql_delete
     from app.core.database import Chunk, Document
+    from sqlalchemy import delete as sql_delete, select
 
     chunks = await db.execute(select(Chunk.id).where(Chunk.document_id == doc_id))
     chunk_ids = [str(r) for r in chunks.scalars().all()]

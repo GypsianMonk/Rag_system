@@ -1,18 +1,14 @@
 """
 Generation Layer
-================
-Builds prompts from retrieved context, calls the LLM, formats citations,
-and checks for hallucination via answer-context cosine similarity.
 """
 
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator, List, Optional
+from collections.abc import AsyncIterator
 
 import numpy as np
 import structlog
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -62,8 +58,7 @@ def _build_llm():
     raise ValueError(f"Unsupported LLM provider: {settings.LLM_PROVIDER}")
 
 
-def _format_context(chunks: List[SearchResult]) -> tuple[str, list[dict]]:
-    """Build context string + citation metadata list."""
+def _format_context(chunks: list[SearchResult]) -> tuple[str, list[dict]]:
     context_parts = []
     citations = []
     for i, chunk in enumerate(chunks, start=1):
@@ -79,7 +74,7 @@ def _format_context(chunks: List[SearchResult]) -> tuple[str, list[dict]]:
     return "\n\n---\n\n".join(context_parts), citations
 
 
-def _cosine_similarity(a: List[float], b: List[float]) -> float:
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
     a_arr, b_arr = np.array(a), np.array(b)
     denom = np.linalg.norm(a_arr) * np.linalg.norm(b_arr)
     return float(np.dot(a_arr, b_arr) / denom) if denom > 0 else 0.0
@@ -98,10 +93,9 @@ class RAGGenerator:
     async def generate(
         self,
         question: str,
-        chunks: List[SearchResult],
-        conversation_history: Optional[List[dict]] = None,
+        chunks: list[SearchResult],
+        conversation_history: list[dict] | None = None,
     ) -> dict:
-        """Generate a grounded answer with citations and hallucination score."""
         if not chunks:
             return {
                 "answer": "I don't have enough information to answer this question based on the provided documents.",
@@ -111,12 +105,11 @@ class RAGGenerator:
 
         context, citations = _format_context(chunks)
 
-        # Optionally prepend conversation history for memory-based RAG
         history_str = ""
         if conversation_history:
             history_str = "\n".join(
-                f"{'User' if m['role']=='user' else 'Assistant'}: {m['content']}"
-                for m in conversation_history[-6:]  # last 3 turns
+                f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
+                for m in conversation_history[-6:]
             )
             history_str = f"Conversation History:\n{history_str}\n\n"
 
@@ -127,14 +120,9 @@ class RAGGenerator:
             {"context": context, "question": full_question},
         )
 
-        # ── Hallucination detection ────────────────────────────────────────────
         faithfulness = await self._compute_faithfulness(answer, chunks)
         if faithfulness < settings.HALLUCINATION_THRESHOLD:
-            logger.warning(
-                "low_faithfulness_detected",
-                score=faithfulness,
-                threshold=settings.HALLUCINATION_THRESHOLD,
-            )
+            logger.warning("low_faithfulness_detected", score=faithfulness)
 
         logger.info("generation_complete", faithfulness=faithfulness, citations=len(citations))
         return {
@@ -143,25 +131,13 @@ class RAGGenerator:
             "faithfulness_score": round(faithfulness, 4),
         }
 
-    async def astream(
-        self,
-        question: str,
-        chunks: List[SearchResult],
-    ) -> AsyncIterator[str]:
-        """Stream tokens for real-time responses."""
+    async def astream(self, question: str, chunks: list[SearchResult]) -> AsyncIterator[str]:
         context, _ = _format_context(chunks)
         async for token in self._prompt | self._llm | StrOutputParser():
             yield token
 
-    async def _compute_faithfulness(
-        self, answer: str, chunks: List[SearchResult]
-    ) -> float:
-        """
-        Approximate faithfulness: average cosine similarity between answer
-        embedding and each retrieved chunk embedding.
-        """
+    async def _compute_faithfulness(self, answer: str, chunks: list[SearchResult]) -> float:
         answer_emb = await self.embedder.aembed(answer)
-        chunk_texts = [c.text for c in chunks]
-        chunk_embs = await self.embedder.aembed_batch(chunk_texts)
+        chunk_embs = await self.embedder.aembed_batch([c.text for c in chunks])
         similarities = [_cosine_similarity(answer_emb, emb) for emb in chunk_embs]
         return float(np.mean(similarities)) if similarities else 0.0

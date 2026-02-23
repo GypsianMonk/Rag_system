@@ -3,8 +3,7 @@ SQLAlchemy async models for metadata, documents, tenants, and query logs.
 """
 
 import uuid
-from datetime import datetime
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey,
@@ -36,7 +35,6 @@ class TimestampMixin:
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-# ── Tenant (multi-tenancy) ────────────────────────────────────────────────────
 class Tenant(Base, TimestampMixin):
     __tablename__ = "tenants"
 
@@ -48,17 +46,16 @@ class Tenant(Base, TimestampMixin):
     documents = relationship("Document", back_populates="tenant", cascade="all, delete-orphan")
 
 
-# ── Document ──────────────────────────────────────────────────────────────────
 class Document(Base, TimestampMixin):
     __tablename__ = "documents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     filename = Column(String(512), nullable=False)
-    doc_type = Column(String(50))                 # pdf, csv, txt …
+    doc_type = Column(String(50))
     source_url = Column(Text)
     chunk_count = Column(Integer, default=0)
-    status = Column(String(50), default="pending")  # pending | processing | ready | error
+    status = Column(String(50), default="pending")
     error_message = Column(Text)
     metadata_ = Column("metadata", JSONB, default=dict)
 
@@ -66,7 +63,6 @@ class Document(Base, TimestampMixin):
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
 
 
-# ── Chunk ─────────────────────────────────────────────────────────────────────
 class Chunk(Base, TimestampMixin):
     __tablename__ = "chunks"
 
@@ -81,7 +77,6 @@ class Chunk(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("document_id", "chunk_index"),)
 
 
-# ── Query Log ─────────────────────────────────────────────────────────────────
 class QueryLog(Base, TimestampMixin):
     __tablename__ = "query_logs"
 
@@ -89,7 +84,7 @@ class QueryLog(Base, TimestampMixin):
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"))
     query_text = Column(Text, nullable=False)
     answer_text = Column(Text)
-    retrieved_chunks = Column(JSONB, default=list)   # list of chunk ids + scores
+    retrieved_chunks = Column(JSONB, default=list)
     faithfulness_score = Column(Float)
     relevancy_score = Column(Float)
     latency_ms = Column(Float)
@@ -98,7 +93,6 @@ class QueryLog(Base, TimestampMixin):
     user_id = Column(String(255))
 
 
-# ── DB helpers ────────────────────────────────────────────────────────────────
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:

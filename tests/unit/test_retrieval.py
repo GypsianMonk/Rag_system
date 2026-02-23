@@ -2,17 +2,14 @@
 Unit tests for hybrid retrieval and generation logic.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-import numpy as np
 import pytest
 
 from app.retrieval.retriever import BM25Engine, HybridRetriever, _reciprocal_rank_fusion
 from app.retrieval.vector_store import SearchResult
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
 def make_result(id: str, text: str, score: float = 0.8) -> SearchResult:
     return SearchResult(id=id, text=text, score=score, metadata={"filename": f"{id}.pdf"})
 
@@ -26,13 +23,11 @@ def sample_results():
     ]
 
 
-# ── BM25 ──────────────────────────────────────────────────────────────────────
 class TestBM25Engine:
     def test_rank_returns_sorted_results(self, sample_results):
         engine = BM25Engine()
         ranked = engine.rank("Python programming language", sample_results)
         assert len(ranked) == 3
-        # Python-related docs should rank higher
         assert ranked[0].id in ("doc1", "doc2")
 
     def test_rank_empty_candidates(self):
@@ -47,7 +42,6 @@ class TestBM25Engine:
             assert "bm25_score" in r.metadata
 
 
-# ── RRF Fusion ───────────────────────────────────────────────────────────────
 class TestRRFFusion:
     def test_fusion_combines_results(self, sample_results):
         dense = sample_results[:2]
@@ -55,7 +49,7 @@ class TestRRFFusion:
         fused = _reciprocal_rank_fusion(dense, bm25, alpha=0.5)
         assert len(fused) == 3
         ids = [r.id for r in fused]
-        assert "doc1" in ids  # appears in both, should rank high
+        assert "doc1" in ids
 
     def test_pure_dense_alpha_one(self, sample_results):
         fused = _reciprocal_rank_fusion(sample_results, [], alpha=1.0)
@@ -66,7 +60,6 @@ class TestRRFFusion:
         assert fused[0].id == "doc1"
 
 
-# ── HybridRetriever ───────────────────────────────────────────────────────────
 class TestHybridRetriever:
     @pytest.fixture
     def mock_embedder(self):
@@ -101,7 +94,6 @@ class TestHybridRetriever:
         assert results == []
 
 
-# ── Generation ────────────────────────────────────────────────────────────────
 class TestRAGGenerator:
     @pytest.mark.asyncio
     async def test_generate_no_chunks_returns_fallback(self):

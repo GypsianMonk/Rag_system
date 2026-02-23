@@ -1,16 +1,11 @@
 """
 Ingestion Pipeline
-==================
-Orchestrates: load → chunk → embed → index → persist metadata
-
-Supports: PDF, DOCX, TXT, CSV, Markdown, plain URLs
 """
 
 import asyncio
-import io
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import structlog
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -33,7 +28,6 @@ from app.retrieval.vector_store import VectorStoreClient
 logger = structlog.get_logger(__name__)
 
 
-# ── Loader factory ───────────────────────────────────────────────────────────
 def _get_loader(file_path: str, file_type: str):
     loaders = {
         "pdf": PyMuPDFLoader,
@@ -47,12 +41,11 @@ def _get_loader(file_path: str, file_type: str):
     return loaders[file_type](file_path)
 
 
-def load_from_url(url: str) -> List[LCDocument]:
+def load_from_url(url: str) -> list[LCDocument]:
     loader = WebBaseLoader(url)
     return loader.load()
 
 
-# ── Chunker ──────────────────────────────────────────────────────────────────
 class DocumentChunker:
     def __init__(
         self,
@@ -66,23 +59,16 @@ class DocumentChunker:
             separators=["\n\n", "\n", ". ", " ", ""],
         )
 
-    def chunk(self, documents: List[LCDocument]) -> List[LCDocument]:
+    def chunk(self, documents: list[LCDocument]) -> list[LCDocument]:
         chunks = self.splitter.split_documents(documents)
-        # Inject chunk index into metadata
         for i, chunk in enumerate(chunks):
             chunk.metadata["chunk_index"] = i
         logger.debug("chunked_documents", input_docs=len(documents), output_chunks=len(chunks))
         return chunks
 
 
-# ── Ingestion Orchestrator ────────────────────────────────────────────────────
 class IngestionPipeline:
-    def __init__(
-        self,
-        embedder: Embedder,
-        vector_store: VectorStoreClient,
-        db: AsyncSession,
-    ):
+    def __init__(self, embedder: Embedder, vector_store: VectorStoreClient, db: AsyncSession):
         self.embedder = embedder
         self.vector_store = vector_store
         self.db = db
@@ -99,7 +85,6 @@ class IngestionPipeline:
         file_ext = Path(filename).suffix.lstrip(".").lower()
         log = logger.bind(doc_id=doc_id, filename=filename, tenant_id=tenant_id)
 
-        # Persist Document record
         db_doc = Document(
             id=doc_id,
             tenant_id=tenant_id,
@@ -111,38 +96,24 @@ class IngestionPipeline:
         self.db.add(db_doc)
         await self.db.flush()
 
+        tmp_path = f"/tmp/{doc_id}_{filename}"
         try:
-            # 1. Write temp file (loaders need fs path)
-            tmp_path = f"/tmp/{doc_id}_{filename}"
             Path(tmp_path).write_bytes(file_bytes)
-
-            # 2. Load
             loader = _get_loader(tmp_path, file_ext)
             raw_docs = loader.load()
             log.info("loaded_document", pages=len(raw_docs))
 
-            # 3. Chunk
             chunks = self.chunker.chunk(raw_docs)
-
-            # 4. Embed (batch)
             texts = [c.page_content for c in chunks]
             embeddings = await self.embedder.aembed_batch(texts)
 
-            # 5. Index in vector store
             ids = [f"{doc_id}_{i}" for i in range(len(chunks))]
             metadatas = [
-                {
-                    **c.metadata,
-                    "doc_id": doc_id,
-                    "tenant_id": tenant_id,
-                    "filename": filename,
-                    **(metadata or {}),
-                }
+                {**c.metadata, "doc_id": doc_id, "tenant_id": tenant_id, "filename": filename, **(metadata or {})}
                 for c in chunks
             ]
             await self.vector_store.aadd(ids=ids, embeddings=embeddings, texts=texts, metadatas=metadatas)
 
-            # 6. Persist chunks to DB
             db_chunks = [
                 Chunk(
                     id=ids[i],
@@ -156,7 +127,6 @@ class IngestionPipeline:
             ]
             self.db.add_all(db_chunks)
 
-            # Update document status
             db_doc.status = "ready"
             db_doc.chunk_count = len(chunks)
             await self.db.flush()

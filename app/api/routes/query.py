@@ -3,12 +3,9 @@
 """
 
 import time
-from typing import List, Optional
-from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,20 +13,19 @@ from app.core.config import settings
 from app.core.database import QueryLog, get_db
 from app.generation.generator import RAGGenerator
 from app.retrieval.retriever import HybridRetriever
-from app.utils.dependencies import get_generator, get_retriever, optional_tenant
+from app.utils.dependencies import get_generator, get_retriever
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-# ── Request / Response schemas ────────────────────────────────────────────────
 class QueryRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=4096, description="User's question")
+    query: str = Field(..., min_length=1, max_length=4096)
     top_k: int = Field(default=settings.RETRIEVAL_TOP_K, ge=1, le=20)
-    alpha: float = Field(default=settings.HYBRID_ALPHA, ge=0.0, le=1.0, description="0=BM25, 1=dense")
-    tenant_id: Optional[str] = Field(None, description="Tenant scope for multi-tenant deployments")
-    conversation_history: Optional[List[dict]] = Field(None, description="Prior messages for memory RAG")
-    stream: bool = Field(False, description="Stream response tokens")
+    alpha: float = Field(default=settings.HYBRID_ALPHA, ge=0.0, le=1.0)
+    tenant_id: str | None = Field(None)
+    conversation_history: list[dict] | None = Field(None)
+    stream: bool = Field(False)
 
 
 class Citation(BaseModel):
@@ -43,13 +39,12 @@ class Citation(BaseModel):
 class QueryResponse(BaseModel):
     query: str
     answer: str
-    citations: List[Citation]
+    citations: list[Citation]
     faithfulness_score: float
     latency_ms: float
-    tokens_used: Optional[int] = None
+    tokens_used: int | None = None
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
 @router.post("/query", response_model=QueryResponse, summary="Query the RAG system")
 async def query_rag(
     req: QueryRequest,
@@ -60,7 +55,6 @@ async def query_rag(
     start = time.perf_counter()
     log = logger.bind(query=req.query[:80], tenant_id=req.tenant_id)
 
-    # 1. Retrieve
     try:
         chunks = await retriever.retrieve(
             query=req.query,
@@ -72,7 +66,6 @@ async def query_rag(
         log.error("retrieval_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Retrieval failed: {str(e)}")
 
-    # 2. Generate
     try:
         result = await generator.generate(
             question=req.query,
@@ -85,7 +78,6 @@ async def query_rag(
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
 
-    # 3. Log to DB
     query_log = QueryLog(
         tenant_id=req.tenant_id,
         query_text=req.query,
