@@ -37,6 +37,7 @@ Context:
 def _build_llm():
     if settings.LLM_PROVIDER == "openai":
         from langchain_openai import ChatOpenAI
+
         return ChatOpenAI(
             model=settings.LLM_MODEL,
             temperature=settings.LLM_TEMPERATURE,
@@ -46,6 +47,7 @@ def _build_llm():
         )
     elif settings.LLM_PROVIDER == "anthropic":
         from langchain_anthropic import ChatAnthropic
+
         return ChatAnthropic(
             model=settings.LLM_MODEL,
             temperature=settings.LLM_TEMPERATURE,
@@ -54,6 +56,7 @@ def _build_llm():
         )
     elif settings.LLM_PROVIDER == "ollama":
         from langchain_ollama import ChatOllama
+
         return ChatOllama(model=settings.LLM_MODEL, temperature=settings.LLM_TEMPERATURE)
     raise ValueError(f"Unsupported LLM provider: {settings.LLM_PROVIDER}")
 
@@ -63,14 +66,18 @@ def _format_context(chunks: list[SearchResult]) -> tuple[str, list[dict]]:
     citations = []
     for i, chunk in enumerate(chunks, start=1):
         filename = chunk.metadata.get("filename", chunk.metadata.get("source", "unknown"))
-        context_parts.append(f"[Source {i}] (file: {filename}, score: {chunk.score:.3f})\n{chunk.text}")
-        citations.append({
-            "index": i,
-            "id": chunk.id,
-            "filename": filename,
-            "score": chunk.score,
-            "text_preview": chunk.text[:200],
-        })
+        context_parts.append(
+            f"[Source {i}] (file: {filename}, score: {chunk.score:.3f})\n{chunk.text}"
+        )
+        citations.append(
+            {
+                "index": i,
+                "id": chunk.id,
+                "filename": filename,
+                "score": chunk.score,
+                "text_preview": chunk.text[:200],
+            }
+        )
     return "\n\n---\n\n".join(context_parts), citations
 
 
@@ -84,10 +91,12 @@ class RAGGenerator:
     def __init__(self, embedder: Embedder):
         self.embedder = embedder
         self._llm = _build_llm()
-        self._prompt = ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT),
-            ("human", "{question}"),
-        ])
+        self._prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", SYSTEM_PROMPT),
+                ("human", "{question}"),
+            ]
+        )
         self._chain = self._prompt | self._llm | StrOutputParser()
 
     async def generate(

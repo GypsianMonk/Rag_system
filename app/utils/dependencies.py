@@ -22,6 +22,7 @@ def _get_redis():
         return None
     try:
         import redis.asyncio as aioredis
+
         return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     except Exception:
         return None

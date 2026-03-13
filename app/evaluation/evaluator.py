@@ -51,12 +51,13 @@ class RAGEvaluator:
 
     async def evaluate(self, sample: EvalSample) -> EvalResult:
         embs = await self.embedder.aembed_batch(
-            [sample.question, sample.answer] + sample.contexts
+            [sample.question, sample.answer]
+            + sample.contexts
             + ([sample.ground_truth] if sample.ground_truth else [])
         )
         q_emb = embs[0]
         a_emb = embs[1]
-        ctx_embs = embs[2: 2 + len(sample.contexts)]
+        ctx_embs = embs[2 : 2 + len(sample.contexts)]
         gt_emb = embs[-1] if sample.ground_truth else None
 
         faith = float(np.mean([_cosine(a_emb, c) for c in ctx_embs])) if ctx_embs else 0.0
@@ -77,7 +78,13 @@ class RAGEvaluator:
         results = await asyncio.gather(*[self.evaluate(s) for s in samples])
         agg = {
             k: round(float(np.mean([getattr(r, k) for r in results])), 4)
-            for k in ("faithfulness", "context_precision", "context_recall", "answer_relevancy", "composite")
+            for k in (
+                "faithfulness",
+                "context_precision",
+                "context_recall",
+                "answer_relevancy",
+                "composite",
+            )
         }
         logger.info("batch_evaluation_complete", n=len(samples), **agg)
         return results

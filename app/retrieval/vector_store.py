@@ -106,12 +106,14 @@ class _FAISSStore:
             meta = self._metadatas[idx]
             if filter and not all(meta.get(k) == v for k, v in filter.items()):
                 continue
-            results.append(SearchResult(
-                id=self._id_map[idx],
-                text=self._texts[idx],
-                score=float(score),
-                metadata=meta,
-            ))
+            results.append(
+                SearchResult(
+                    id=self._id_map[idx],
+                    text=self._texts[idx],
+                    score=float(score),
+                    metadata=meta,
+                )
+            )
             if len(results) >= top_k:
                 break
         return results
@@ -123,9 +125,7 @@ class _FAISSStore:
         self._metadatas = [self._metadatas[i] for i in keep]
         new_index = faiss.IndexFlatIP(self._dim)
         if keep:
-            vecs = np.array(
-                [self._index.reconstruct(i) for i in keep], dtype="float32"
-            )
+            vecs = np.array([self._index.reconstruct(i) for i in keep], dtype="float32")
             new_index.add(vecs)
         self._index = new_index
         self._save()
@@ -134,10 +134,9 @@ class _FAISSStore:
 class _ChromaStore:
     def __init__(self):
         import chromadb
+
         self._client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
-        self._col = self._client.get_or_create_collection(
-            "rag", metadata={"hnsw:space": "cosine"}
-        )
+        self._col = self._client.get_or_create_collection("rag", metadata={"hnsw:space": "cosine"})
 
     def add(self, ids, embeddings, texts, metadatas):
         self._col.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
@@ -168,13 +167,13 @@ class _ChromaStore:
 class _PineconeStore:
     def __init__(self):
         from pinecone import Pinecone
+
         pc = Pinecone(api_key=settings.PINECONE_API_KEY.get_secret_value())
         self._index = pc.Index(settings.PINECONE_INDEX_NAME)
 
     def add(self, ids, embeddings, texts, metadatas):
         vectors = [
-            (ids[i], embeddings[i], {**metadatas[i], "_text": texts[i]})
-            for i in range(len(ids))
+            (ids[i], embeddings[i], {**metadatas[i], "_text": texts[i]}) for i in range(len(ids))
         ]
         self._index.upsert(vectors=vectors)
 

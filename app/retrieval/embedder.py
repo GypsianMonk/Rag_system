@@ -21,15 +21,20 @@ class Embedder:
     def _build_model(self):
         if settings.EMBEDDING_PROVIDER == "openai":
             from langchain_openai import OpenAIEmbeddings
+
             return OpenAIEmbeddings(
                 model=settings.EMBEDDING_MODEL,
                 api_key=settings.OPENAI_API_KEY.get_secret_value(),
             )
         else:
             from langchain_huggingface import HuggingFaceEmbeddings
+
             return HuggingFaceEmbeddings(
                 model_name=settings.EMBEDDING_MODEL,
-                encode_kwargs={"normalize_embeddings": True, "batch_size": settings.EMBEDDING_BATCH_SIZE},
+                encode_kwargs={
+                    "normalize_embeddings": True,
+                    "batch_size": settings.EMBEDDING_BATCH_SIZE,
+                },
             )
 
     def _cache_key(self, text: str) -> str:

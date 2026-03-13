@@ -5,10 +5,8 @@ Ingestion Pipeline
 import asyncio
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import structlog
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     CSVLoader,
     Docx2txtLoader,
@@ -18,6 +16,7 @@ from langchain_community.document_loaders import (
     WebBaseLoader,
 )
 from langchain_core.documents import Document as LCDocument
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -79,7 +78,7 @@ class IngestionPipeline:
         file_bytes: bytes,
         filename: str,
         tenant_id: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         doc_id = str(uuid.uuid4())
         file_ext = Path(filename).suffix.lstrip(".").lower()
@@ -109,10 +108,18 @@ class IngestionPipeline:
 
             ids = [f"{doc_id}_{i}" for i in range(len(chunks))]
             metadatas = [
-                {**c.metadata, "doc_id": doc_id, "tenant_id": tenant_id, "filename": filename, **(metadata or {})}
+                {
+                    **c.metadata,
+                    "doc_id": doc_id,
+                    "tenant_id": tenant_id,
+                    "filename": filename,
+                    **(metadata or {}),
+                }
                 for c in chunks
             ]
-            await self.vector_store.aadd(ids=ids, embeddings=embeddings, texts=texts, metadatas=metadatas)
+            await self.vector_store.aadd(
+                ids=ids, embeddings=embeddings, texts=texts, metadatas=metadatas
+            )
 
             db_chunks = [
                 Chunk(
@@ -144,7 +151,7 @@ class IngestionPipeline:
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
-    async def ingest_url(self, url: str, tenant_id: str, metadata: Optional[dict] = None) -> dict:
+    async def ingest_url(self, url: str, tenant_id: str, metadata: dict | None = None) -> dict:
         raw_docs = await asyncio.to_thread(load_from_url, url)
         chunks = self.chunker.chunk(raw_docs)
         texts = [c.page_content for c in chunks]
@@ -153,9 +160,17 @@ class IngestionPipeline:
         doc_id = str(uuid.uuid4())
         ids = [f"{doc_id}_{i}" for i in range(len(chunks))]
         metadatas = [
-            {**c.metadata, "doc_id": doc_id, "tenant_id": tenant_id, "source_url": url, **(metadata or {})}
+            {
+                **c.metadata,
+                "doc_id": doc_id,
+                "tenant_id": tenant_id,
+                "source_url": url,
+                **(metadata or {}),
+            }
             for c in chunks
         ]
-        await self.vector_store.aadd(ids=ids, embeddings=embeddings, texts=texts, metadatas=metadatas)
+        await self.vector_store.aadd(
+            ids=ids, embeddings=embeddings, texts=texts, metadatas=metadatas
+        )
         logger.info("url_ingested", url=url, chunks=len(chunks))
         return {"doc_id": doc_id, "chunks": len(chunks), "status": "ready"}

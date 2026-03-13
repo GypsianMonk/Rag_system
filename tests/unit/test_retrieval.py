@@ -98,6 +98,7 @@ class TestRAGGenerator:
     @pytest.mark.asyncio
     async def test_generate_no_chunks_returns_fallback(self):
         from app.generation.generator import RAGGenerator
+
         mock_embedder = AsyncMock()
         gen = RAGGenerator.__new__(RAGGenerator)
         gen.embedder = mock_embedder
@@ -110,10 +111,12 @@ class TestRAGGenerator:
     @pytest.mark.asyncio
     async def test_cosine_similarity_identical_vectors(self):
         from app.generation.generator import _cosine_similarity
+
         v = [1.0, 0.0, 0.0]
         assert _cosine_similarity(v, v) == pytest.approx(1.0)
 
     @pytest.mark.asyncio
     async def test_cosine_similarity_orthogonal_vectors(self):
         from app.generation.generator import _cosine_similarity
+
         assert _cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)

@@ -13,9 +13,7 @@ cross-encoder model.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
 
-import numpy as np
 import structlog
 from rank_bm25 import BM25Okapi
 
@@ -30,7 +28,7 @@ logger = structlog.get_logger(__name__)
 class BM25Engine:
     """Lightweight BM25 over a provided corpus (post-dense-fetch)."""
 
-    def rank(self, query: str, candidates: List[SearchResult]) -> List[SearchResult]:
+    def rank(self, query: str, candidates: list[SearchResult]) -> list[SearchResult]:
         if not candidates:
             return candidates
         tokenised = [c.text.lower().split() for c in candidates]
@@ -45,9 +43,10 @@ class BM25Engine:
 class CrossEncoderReranker:
     def __init__(self, model_name: str = settings.RERANKER_MODEL):
         from sentence_transformers import CrossEncoder
+
         self._model = CrossEncoder(model_name)
 
-    def rerank(self, query: str, candidates: List[SearchResult]) -> List[SearchResult]:
+    def rerank(self, query: str, candidates: list[SearchResult]) -> list[SearchResult]:
         if not candidates:
             return candidates
         pairs = [(query, c.text) for c in candidates]
@@ -61,14 +60,14 @@ class CrossEncoderReranker:
 
 # ── RRF fusion ────────────────────────────────────────────────────────────────
 def _reciprocal_rank_fusion(
-    dense_results: List[SearchResult],
-    bm25_results: List[SearchResult],
+    dense_results: list[SearchResult],
+    bm25_results: list[SearchResult],
     alpha: float = settings.HYBRID_ALPHA,
     k: int = 60,
-) -> List[SearchResult]:
+) -> list[SearchResult]:
     """Weighted RRF: score = alpha * (1/dense_rank) + (1-alpha) * (1/bm25_rank)"""
-    scores: Dict[str, float] = {}
-    id_to_result: Dict[str, SearchResult] = {}
+    scores: dict[str, float] = {}
+    id_to_result: dict[str, SearchResult] = {}
 
     for rank, res in enumerate(dense_results):
         scores[res.id] = scores.get(res.id, 0.0) + alpha / (k + rank + 1)
@@ -93,7 +92,7 @@ class HybridRetriever:
         self,
         embedder: Embedder,
         vector_store: VectorStoreClient,
-        reranker: Optional[CrossEncoderReranker] = None,
+        reranker: CrossEncoderReranker | None = None,
     ):
         self.embedder = embedder
         self.vector_store = vector_store
@@ -104,9 +103,9 @@ class HybridRetriever:
         self,
         query: str,
         top_k: int = settings.RETRIEVAL_TOP_K,
-        tenant_id: Optional[str] = None,
+        tenant_id: str | None = None,
         alpha: float = settings.HYBRID_ALPHA,
-    ) -> List[SearchResult]:
+    ) -> list[SearchResult]:
         """
         Full hybrid retrieval pipeline:
         1. Embed query
