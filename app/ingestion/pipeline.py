@@ -134,16 +134,16 @@ class IngestionPipeline:
             ]
             self.db.add_all(db_chunks)
 
-            db_doc.status = "ready"
-            db_doc.chunk_count = len(chunks)
+            db_doc.status = "ready"  # type: ignore[assignment]
+            db_doc.chunk_count = len(chunks)  # type: ignore[assignment]
             await self.db.flush()
 
             log.info("ingestion_complete", chunks=len(chunks))
             return {"doc_id": doc_id, "chunks": len(chunks), "status": "ready"}
 
         except Exception as e:
-            db_doc.status = "error"
-            db_doc.error_message = str(e)
+            db_doc.status = "error"  # type: ignore[assignment]
+            db_doc.error_message = str(e)  # type: ignore[assignment]
             await self.db.flush()
             log.error("ingestion_failed", error=str(e))
             raise

@@ -41,7 +41,8 @@ async def ingest_file(
     db: AsyncSession = Depends(get_db),
     pipeline: IngestionPipeline = Depends(get_ingestion_pipeline),
 ):
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    fname = file.filename or "unknown"
+    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
     if ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -59,7 +60,7 @@ async def ingest_file(
 
     result = await pipeline.ingest_file(
         file_bytes=content,
-        filename=file.filename,
+        filename=fname,
         tenant_id=tenant_id,
         metadata=meta_dict,
     )

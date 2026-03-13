@@ -120,3 +120,74 @@ class TestRAGGenerator:
         from app.generation.generator import _cosine_similarity
 
         assert _cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+
+
+class TestFormatContext:
+    def test_format_context_builds_string(self):
+        from app.generation.generator import _format_context
+
+        chunks = [
+            SearchResult(id="c1", text="Python info", score=0.9,
+                         metadata={"filename": "python.pdf"}),
+            SearchResult(id="c2", text="FastAPI info", score=0.8,
+                         metadata={"filename": "fastapi.pdf"}),
+        ]
+        context_str, citations = _format_context(chunks)
+        assert "[Source 1]" in context_str
+        assert "[Source 2]" in context_str
+        assert len(citations) == 2
+        assert citations[0]["index"] == 1
+        assert citations[0]["filename"] == "python.pdf"
+
+    def test_format_context_empty(self):
+        from app.generation.generator import _format_context
+
+        context_str, citations = _format_context([])
+        assert context_str == ""
+        assert citations == []
+
+    def test_format_context_uses_source_fallback(self):
+        from app.generation.generator import _format_context
+
+        chunks = [SearchResult(id="c1", text="x", score=0.5, metadata={"source": "doc.txt"})]
+        _, citations = _format_context(chunks)
+        assert citations[0]["filename"] == "doc.txt"
+
+    def test_cosine_similarity_generator(self):
+        from app.generation.generator import _cosine_similarity
+
+        assert _cosine_similarity([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+        assert _cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0, abs=1e-9)
+        assert _cosine_similarity([0.0, 0.0], [1.0, 0.0]) == pytest.approx(0.0)
+
+
+class TestDependencies:
+    def test_get_retriever_from_stubs(self):
+        from app.retrieval.retriever import HybridRetriever
+        from app.utils.dependencies import get_retriever
+        from tests.conftest import StubEmbedder, StubVectorStore
+        retriever = get_retriever(
+            embedder=StubEmbedder(),
+            vector_store=StubVectorStore(),
+            reranker=None,
+        )
+        assert isinstance(retriever, HybridRetriever)
+
+    def test_optional_tenant_returns_none(self):
+        from app.utils.dependencies import optional_tenant
+        assert optional_tenant() is None
+
+    def test_optional_tenant_returns_value(self):
+        from app.utils.dependencies import optional_tenant
+        assert optional_tenant("tenant-1") == "tenant-1"
+
+    def test_get_ingestion_pipeline_returns_pipeline(self):
+        from app.ingestion.pipeline import IngestionPipeline
+        from app.utils.dependencies import get_ingestion_pipeline
+        from tests.conftest import StubDBSession, StubEmbedder, StubVectorStore
+        pipeline = get_ingestion_pipeline(
+            embedder=StubEmbedder(),
+            vector_store=StubVectorStore(),
+            db=StubDBSession(),
+        )
+        assert isinstance(pipeline, IngestionPipeline)
