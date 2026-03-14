@@ -8,7 +8,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/rag-system
 
 jobs:
   # ── Lint & Type Check ────────────────────────────────────────────────────────
@@ -111,6 +110,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Lowercase image name
+        run: echo "IMAGE_NAME=$(echo ${{ github.repository }}/rag-system | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
