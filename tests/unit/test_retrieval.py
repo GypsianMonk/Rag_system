@@ -127,10 +127,12 @@ class TestFormatContext:
         from app.generation.generator import _format_context
 
         chunks = [
-            SearchResult(id="c1", text="Python info", score=0.9,
-                         metadata={"filename": "python.pdf"}),
-            SearchResult(id="c2", text="FastAPI info", score=0.8,
-                         metadata={"filename": "fastapi.pdf"}),
+            SearchResult(
+                id="c1", text="Python info", score=0.9, metadata={"filename": "python.pdf"}
+            ),
+            SearchResult(
+                id="c2", text="FastAPI info", score=0.8, metadata={"filename": "fastapi.pdf"}
+            ),
         ]
         context_str, citations = _format_context(chunks)
         assert "[Source 1]" in context_str
@@ -166,6 +168,7 @@ class TestDependencies:
         from app.retrieval.retriever import HybridRetriever
         from app.utils.dependencies import get_retriever
         from tests.conftest import StubEmbedder, StubVectorStore
+
         retriever = get_retriever(
             embedder=StubEmbedder(),
             vector_store=StubVectorStore(),
@@ -175,16 +178,19 @@ class TestDependencies:
 
     def test_optional_tenant_returns_none(self):
         from app.utils.dependencies import optional_tenant
+
         assert optional_tenant() is None
 
     def test_optional_tenant_returns_value(self):
         from app.utils.dependencies import optional_tenant
+
         assert optional_tenant("tenant-1") == "tenant-1"
 
     def test_get_ingestion_pipeline_returns_pipeline(self):
         from app.ingestion.pipeline import IngestionPipeline
         from app.utils.dependencies import get_ingestion_pipeline
         from tests.conftest import StubDBSession, StubEmbedder, StubVectorStore
+
         pipeline = get_ingestion_pipeline(
             embedder=StubEmbedder(),
             vector_store=StubVectorStore(),

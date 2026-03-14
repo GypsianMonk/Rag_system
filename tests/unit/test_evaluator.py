@@ -1,6 +1,7 @@
 """
 Unit tests for RAGEvaluator and EvalSample/EvalResult dataclasses.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -23,12 +24,20 @@ class TestCosine:
 
 class TestEvalResult:
     def test_summary_keys(self):
-        r = EvalResult(faithfulness=0.9, context_precision=0.8,
-                       context_recall=0.7, answer_relevancy=0.85, composite=0.81)
+        r = EvalResult(
+            faithfulness=0.9,
+            context_precision=0.8,
+            context_recall=0.7,
+            answer_relevancy=0.85,
+            composite=0.81,
+        )
         s = r.summary()
         assert set(s.keys()) == {
-            "faithfulness", "context_precision", "context_recall",
-            "answer_relevancy", "composite",
+            "faithfulness",
+            "context_precision",
+            "context_recall",
+            "answer_relevancy",
+            "composite",
         }
 
     def test_summary_rounds_to_4dp(self):
@@ -79,17 +88,14 @@ class TestRAGEvaluator:
 
     @pytest.mark.asyncio
     async def test_evaluate_no_ground_truth_recall_is_one(self, evaluator):
-        sample = EvalSample(
-            question="Q", answer="A", contexts=["C"], ground_truth=None
-        )
+        sample = EvalSample(question="Q", answer="A", contexts=["C"], ground_truth=None)
         result = await evaluator.evaluate(sample)
         assert result.context_recall == 1.0
 
     @pytest.mark.asyncio
     async def test_evaluate_batch(self, evaluator):
         samples = [
-            EvalSample(question=f"Q{i}", answer=f"A{i}", contexts=[f"C{i}"])
-            for i in range(3)
+            EvalSample(question=f"Q{i}", answer=f"A{i}", contexts=[f"C{i}"]) for i in range(3)
         ]
         results = await evaluator.evaluate_batch(samples)
         assert len(results) == 3
@@ -100,7 +106,9 @@ class TestRAGEvaluator:
         sample = EvalSample(question="Q", answer="A", contexts=["C"])
         result = await evaluator.evaluate(sample)
         expected = (
-            result.faithfulness + result.context_precision
-            + result.context_recall + result.answer_relevancy
+            result.faithfulness
+            + result.context_precision
+            + result.context_recall
+            + result.answer_relevancy
         ) / 4
         assert result.composite == pytest.approx(expected, abs=1e-4)
